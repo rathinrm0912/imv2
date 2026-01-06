@@ -199,6 +199,186 @@ async def create_document(doc_data: DocumentCreate):
     doc_dict['created_at'] = doc_dict['created_at'].isoformat()
     doc_dict['updated_at'] = doc_dict['updated_at'].isoformat()
     
+    await mongo_db.documents.insert_one(doc_dict)
+    
+    return doc
+
+@app.get("/api/documents", response_model=List[Document])
+async def list_documents(user_id: Optional[str] = None):
+    """List all documents, optionally filtered by user"""
+    query = {}
+    if user_id:
+        query['collaborators'] = user_id
+    
+    docs = await mongo_db.documents.find(query, {'_id': 0}).to_list(1000)
+    
+    documents = []
+    for doc_data in docs:
+        doc_data['created_at'] = datetime.fromisoformat(doc_data['created_at'])
+        doc_data['updated_at'] = datetime.fromisoformat(doc_data['updated_at'])
+        documents.append(Document(**doc_data))
+    
+    return documents
+
+@app.get("/api/documents/{doc_id}", response_model=Document)
+async def get_document(doc_id: str):
+    """Get document by ID"""
+    doc_data = await mongo_db.documents.find_one({'id': doc_id}, {'_id': 0})
+    
+    if not doc_data:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    doc_data['created_at'] = datetime.fromisoformat(doc_data['created_at'])
+    doc_data['updated_at'] = datetime.fromisoformat(doc_data['updated_at'])
+    
+    return Document(**doc_data)
+
+class DocumentUpdate(BaseModel):
+    title: Optional[str] = None
+    status: Optional[DocumentStatus] = None
+    sections: Optional[List[Dict[str, Any]]] = None
+
+@app.patch("/api/documents/{doc_id}")
+async def update_document(doc_id: str, updates: DocumentUpdate):
+    """Update document fields"""
+    doc = await mongo_db.documents.find_one({'id': doc_id}, {'_id': 0})
+    
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    update_data = {k: v for k, v in updates.model_dump().items() if v is not None}
+    update_data['updated_at'] = datetime.utcnow().isoformat()
+    
+    await mongo_db.documents.update_one(
+        {'id': doc_id},
+        {'$set': update_data}
+    )
+    
+    return {"message": "Document updated successfully"}
+
+@app.post("/api/documents/{doc_id}/collaborators/{user_id}")
+async def add_collaborator(doc_id: str, user_id: str):
+    """Add collaborator to document"""
+    doc = await mongo_db.documents.find_one({'id': doc_id}, {'_id': 0})
+    
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    if user_id not in doc.get('collaborators', []):
+        await mongo_db.documents.update_one(
+            {'id': doc_id},
+            {'$addToSet': {'collaborators': user_id}}
+        )
+    
+    return {"message": "Collaborator added successfully"}
+
+@app.delete("/api/documents/{doc_id}")
+async def delete_document(doc_id: str):
+    """Delete document"""
+    await mongo_db.documents.delete_one({'id': doc_id})
+    return {"message": "Document deleted successfully"}
+async def create_document(doc_data: DocumentCreate):
+    """Create a new IM document"""
+    doc_id = str(uuid.uuid4())
+    
+    # Initialize with default IM sections
+    sections = [
+        IMSection(
+            section_id="exec_summary",
+            section_number="1",
+            title="Executive Summary & Investment Highlights",
+            content={},
+            instructions="Provide company details, business summary, investment rationale, and key highlights"
+        ),
+        IMSection(
+            section_id="opportunity",
+            section_number="2",
+            title="Opportunity Analysis & Investment Rationale",
+            content={},
+            instructions="Outline founding team strength, market need, size, innovation, scalability"
+        ),
+        IMSection(
+            section_id="journey",
+            section_number="3",
+            title="Applicant's Journey in this Program",
+            content={},
+            instructions="Step-by-step process from application to final selection"
+        ),
+        IMSection(
+            section_id="business_overview",
+            section_number="4",
+            title="Business Overview",
+            content={},
+            instructions="Problem statement, solution stage, business model, technology summary"
+        ),
+        IMSection(
+            section_id="financial",
+            section_number="5",
+            title="Financial Overview",
+            content={},
+            instructions="Funds raised, P&L insights, balance sheet, bank statements, projections"
+        ),
+        IMSection(
+            section_id="market",
+            section_number="6",
+            title="Market & Industry Analysis",
+            content={},
+            instructions="TAM/SAM/SOM, Indian and global market, competition, regulatory impact"
+        ),
+        IMSection(
+            section_id="positioning",
+            section_number="7",
+            title="Strategic Positioning",
+            content={},
+            instructions="Competitive advantage, SWOT analysis, risk mitigation"
+        ),
+        IMSection(
+            section_id="management",
+            section_number="8",
+            title="Management & Governance",
+            content={},
+            instructions="Founding team background, cap table, employee details"
+        ),
+        IMSection(
+            section_id="risk",
+            section_number="9",
+            title="Risk Analysis",
+            content={},
+            instructions="Market, operational, financial, regulatory, and external risks"
+        ),
+        IMSection(
+            section_id="transaction",
+            section_number="10",
+            title="Transaction Details",
+            content={},
+            instructions="Fund utilization plan, exit mechanisms, recommendation"
+        ),
+    ]
+    
+    # Add annexures
+    for i in range(1, 14):
+        sections.append(
+            IMSection(
+                section_id=f"annexure_{i}",
+                section_number=str(10 + i),
+                title=f"Annexure {i}",
+                content={},
+                instructions=f"Supporting documentation for section {i}"
+            )
+        )
+    
+    doc = Document(
+        id=doc_id,
+        title=doc_data.title,
+        created_by=doc_data.created_by,
+        sections=[s.model_dump() for s in sections],
+        collaborators=[doc_data.created_by]
+    )
+    
+    doc_dict = doc.model_dump()
+    doc_dict['created_at'] = doc_dict['created_at'].isoformat()
+    doc_dict['updated_at'] = doc_dict['updated_at'].isoformat()
+    
     db.collection(DOCUMENTS_COLLECTION).document(doc_id).set(doc_dict)
     
     return doc
