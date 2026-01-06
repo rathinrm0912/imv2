@@ -1,0 +1,170 @@
+{
+  "identity": {
+    "name": "Redwood IM Platform",
+    "persona": "E1 - The Anti-AI Designer",
+    "tone": "Authoritative, Precision-Engineered, Modern Financial",
+    "archetype": "Swiss & High-Contrast (Structure) + Jewel (Brand)",
+    "principles": [
+      "Fusion over Imitation: Bloomberg Terminal meets Linear App",
+      "Content is King: The Investment Memo is the hero",
+      "Zoom In: Dense data, readable details",
+      "Negative Space: Breathing room for critical decisions"
+    ]
+  },
+  "typography": {
+    "headings": {
+      "family": "Manrope, sans-serif",
+      "weights": ["600", "800"],
+      "usage": "Section titles, Dashboard headers, Modal titles",
+      "letterSpacing": "tracking-tight"
+    },
+    "body": {
+      "family": "IBM Plex Sans, sans-serif",
+      "weights": ["400", "500"],
+      "usage": "General text, Form labels, Comments",
+      "lineHeight": "leading-relaxed"
+    },
+    "mono": {
+      "family": "JetBrains Mono, monospace",
+      "weights": ["400", "500"],
+      "usage": "Financial tables, Data grids, Transaction IDs",
+      "size": "text-xs or text-sm"
+    }
+  },
+  "colors": {
+    "palette": {
+      "primary": {
+        "name": "Redwood Green",
+        "hex": "#064E3B",
+        "tailwind": "emerald-900",
+        "usage": "Primary Actions, Active States, Brand Identity"
+      },
+      "secondary": {
+        "name": "Slate Charcoal",
+        "hex": "#1E293B",
+        "tailwind": "slate-800",
+        "usage": "Text, Sidebar Backgrounds (Dark Mode)"
+      },
+      "accent": {
+        "name": "Bronze Value",
+        "hex": "#B45309",
+        "tailwind": "amber-700",
+        "usage": "Highlights, 'Money' metrics, Callouts"
+      },
+      "background": {
+        "light": "#F8FAF9",
+        "dark": "#022C22",
+        "usage": "App Backgrounds"
+      },
+      "surface": {
+        "light": "#FFFFFF",
+        "dark": "#064E3B",
+        "usage": "Cards, Modals, Panels"
+      }
+    },
+    "rules": [
+      "Never use pure black (#000000). Use #020617 (Rich Black).",
+      "Gradients are forbidden for backgrounds. Use texture/noise instead.",
+      "Primary color is for ACTIONS only. Do not overuse.",
+      "Text on dark backgrounds must be 'slate-200' or 'emerald-50', never pure white."
+    ]
+  },
+  "layout_strategy": {
+    "dashboard": {
+      "type": "Bento Grid (Mode B: Control Room)",
+      "grid_cols": "grid-cols-1 md:grid-cols-4",
+      "gap": "gap-4",
+      "rules": [
+        "Every pixel utilized. No jagged bottoms.",
+        "Summary metrics: col-span-1",
+        "Main charts: col-span-2 or col-span-3",
+        "Activity feeds: col-span-1 row-span-2 (Tall)"
+      ]
+    },
+    "editor": {
+      "type": "Split Screen Focus",
+      "structure": [
+        "Left Sidebar: Navigation (TOC) - Fixed, Collapsible",
+        "Center: Document Canvas - Paper-like, Shadow-lg, Max-width-4xl",
+        "Right Sidebar: Comments/Tools - Glassmorphism, Floating or Docked"
+      ]
+    },
+    "spacing": {
+      "scale": "Generous. Use p-6 or p-8 for containers.",
+      "internal": "p-4 for card internals."
+    }
+  },
+  "components": {
+    "buttons": {
+      "style": "Sharp or minimal radius (rounded-sm)",
+      "interaction": "Transform: active:scale-95 transition-transform",
+      "shadow": "shadow-sm hover:shadow-md"
+    },
+    "cards": {
+      "style": "Flat with 1px border (border-border). No massive drop shadows.",
+      "hover": "Border color darkens/lightens. Subtle lift.",
+      "special": "Use 'Tracing Beam' effect for active document cards."
+    },
+    "inputs": {
+      "style": "Shadcn default but with 'rounded-sm' and 'bg-background/50'.",
+      "focus": "Ring-2 ring-primary/20 border-primary"
+    },
+    "tables": {
+      "style": "Dense, 'Bloomberg' style.",
+      "header": "Uppercase, tracking-wider, text-xs, text-muted-foreground",
+      "row": "Hover: bg-muted/50. Font-mono for numbers."
+    },
+    "modals": {
+      "overlay": "backdrop-blur-sm bg-background/80",
+      "content": "Border-1 border-border shadow-2xl"
+    }
+  },
+  "visual_enhancers": {
+    "glassmorphism": {
+      "usage": "Sticky Headers, Floating Comment Panels",
+      "classes": "bg-background/70 backdrop-blur-xl border-b border-white/10"
+    },
+    "texture": {
+      "usage": "Sidebar backgrounds",
+      "type": "Subtle noise/grain overlay (opacity 0.03)"
+    },
+    "motion": {
+      "library": "Framer Motion",
+      "transitions": "Spring physics (stiffness: 300, damping: 30)",
+      "page_load": "Staggered fade-in for dashboard items"
+    }
+  },
+  "assets": {
+    "images": {
+      "login_bg": {
+        "url": "https://images.unsplash.com/photo-1641060272821-df59e2c0b5ed?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDJ8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBvZmZpY2UlMjBhcmNoaXRlY3R1cmV8ZW58MHx8fHwxNzY3NjgxNzAyfDA&ixlib=rb-4.1.0&q=85",
+        "alt": "Modern Abstract Architecture",
+        "usage": "Login/Register Page Background (with heavy overlay)"
+      },
+      "avatars": [
+        {
+          "url": "https://images.unsplash.com/photo-1581065178047-8ee15951ede6?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3MjQyMTd8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBidXNpbmVzcyUyMHBvcnRyYWl0fGVufDB8fHx8MTc2NzYxMjc5OHww&ixlib=rb-4.1.0&q=85",
+          "alt": "User Avatar 1"
+        },
+        {
+          "url": "https://images.unsplash.com/photo-1629507208649-70919ca33793?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3MjQyMTd8MHwxfHNlYXJjaHw0fHxwcm9mZXNzaW9uYWwlMjBidXNpbmVzcyUyMHBvcnRyYWl0fGVufDB8fHx8MTc2NzYxMjc5OHww&ixlib=rb-4.1.0&q=85",
+          "alt": "User Avatar 2"
+        }
+      ]
+    },
+    "icons": {
+      "library": "Lucide React",
+      "style": "Stroke width 1.5px (Thin/Elegant)"
+    }
+  },
+  "universal_guidelines": [
+    "Do not use 'Inter' for headings.",
+    "Do not use gradients for backgrounds.",
+    "Use 'sonner' for toasts.",
+    "All interactive elements must have 'data-testid'.",
+    "Use 'Manrope' for headings and 'IBM Plex Sans' for body.",
+    "Ensure dark mode is 'Deep Jungle' (#022C22), not just black.",
+    "Tables must be dense and data-rich."
+  ],
+  "instructions_to_main_agent": "You are building a high-stakes financial tool. It must feel expensive. Use the provided color palette strictly. Implement the 'Split Screen' editor layout. Use the 'Bento Grid' for the dashboard. Ensure all 22 sections of the IM are accounted for in the navigation structure."
+}
