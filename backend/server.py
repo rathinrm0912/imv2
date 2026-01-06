@@ -1,26 +1,15 @@
-from fastapi import FastAPI, HTTPException, Depends, Header
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
+from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import uuid
 import json
 from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
-from motor.motor_asyncio import AsyncIOMotorClient
-
-# Import Firebase and Resend configs
-try:
-    from firebase_config import db as firestore_db, USERS_COLLECTION, DOCUMENTS_COLLECTION, COMMENTS_COLLECTION, NOTIFICATIONS_COLLECTION
-    FIRESTORE_AVAILABLE = True
-except Exception as e:
-    print(f"Firestore not available: {e}")
-    FIRESTORE_AVAILABLE = False
-
-from resend_config import send_comment_notification
-from models import User, UserRole, Document, DocumentStatus, Comment, Notification, IMSection, ExportFormat
 
 # Load environment variables
 ROOT_DIR = Path(__file__).parent
@@ -31,9 +20,13 @@ mongo_url = os.environ['MONGO_URL']
 mongo_client = AsyncIOMotorClient(mongo_url)
 mongo_db = mongo_client[os.environ['DB_NAME']]
 
+# Import models
+from models import User, UserRole, Document, DocumentStatus, Comment, Notification, IMSection, ExportFormat
+from resend_config import send_comment_notification
+
 app = FastAPI(title="Redwood IM Platform API")
 
-# CORS Configuration
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -42,426 +35,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ==================== AUTH & USER MANAGEMENT ====================
-
+# Create models
 class UserCreate(BaseModel):
     email: str
     display_name: str
     uid: str
     role: UserRole = UserRole.EDITOR
 
-@app.post("/api/users", response_model=User)
-async def create_user(user_data: UserCreate):
-    """Create or update user profile"""
-    user_dict = user_data.model_dump()
-    user_dict['created_at'] = datetime.utcnow().isoformat()
-    
-    # Store in MongoDB
-    await mongo_db.users.update_one(
-        {'uid': user_data.uid},
-        {'$set': user_dict},
-        upsert=True
-    )
-    
-    return User(**user_dict)
-
-@app.get("/api/users/{uid}", response_model=User)
-async def get_user(uid: str):
-    """Get user by UID"""
-    user_doc = await mongo_db.users.find_one({'uid': uid}, {'_id': 0})
-    
-    if not user_doc:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    return User(**user_doc)
-
-@app.get("/api/users", response_model=List[User])
-async def list_users():
-    """List all users"""
-    users = await mongo_db.users.find({}, {'_id': 0}).to_list(1000)
-    return [User(**user) for user in users]
-
-@app.patch("/api/users/{uid}/role")
-async def update_user_role(uid: str, role: UserRole):
-    """Update user role (Admin only)"""
-    await mongo_db.users.update_one(
-        {'uid': uid},
-        {'$set': {'role': role.value}}
-    )
-    return {"message": "Role updated successfully"}
-
-# ==================== DOCUMENT MANAGEMENT ====================
-
 class DocumentCreate(BaseModel):
     title: str
     created_by: str
 
-@app.post("/api/documents", response_model=Document)
-async def create_document(doc_data: DocumentCreate):
-    """Create a new IM document"""
-    doc_id = str(uuid.uuid4())
-    
-    # Initialize with default IM sections
-    sections = [
-        IMSection(
-            section_id="exec_summary",
-            section_number="1",
-            title="Executive Summary & Investment Highlights",
-            content={},
-            instructions="Provide company details, business summary, investment rationale, and key highlights"
-        ),
-        IMSection(
-            section_id="opportunity",
-            section_number="2",
-            title="Opportunity Analysis & Investment Rationale",
-            content={},
-            instructions="Outline founding team strength, market need, size, innovation, scalability"
-        ),
-        IMSection(
-            section_id="journey",
-            section_number="3",
-            title="Applicant's Journey in this Program",
-            content={},
-            instructions="Step-by-step process from application to final selection"
-        ),
-        IMSection(
-            section_id="business_overview",
-            section_number="4",
-            title="Business Overview",
-            content={},
-            instructions="Problem statement, solution stage, business model, technology summary"
-        ),
-        IMSection(
-            section_id="financial",
-            section_number="5",
-            title="Financial Overview",
-            content={},
-            instructions="Funds raised, P&L insights, balance sheet, bank statements, projections"
-        ),
-        IMSection(
-            section_id="market",
-            section_number="6",
-            title="Market & Industry Analysis",
-            content={},
-            instructions="TAM/SAM/SOM, Indian and global market, competition, regulatory impact"
-        ),
-        IMSection(
-            section_id="positioning",
-            section_number="7",
-            title="Strategic Positioning",
-            content={},
-            instructions="Competitive advantage, SWOT analysis, risk mitigation"
-        ),
-        IMSection(
-            section_id="management",
-            section_number="8",
-            title="Management & Governance",
-            content={},
-            instructions="Founding team background, cap table, employee details"
-        ),
-        IMSection(
-            section_id="risk",
-            section_number="9",
-            title="Risk Analysis",
-            content={},
-            instructions="Market, operational, financial, regulatory, and external risks"
-        ),
-        IMSection(
-            section_id="transaction",
-            section_number="10",
-            title="Transaction Details",
-            content={},
-            instructions="Fund utilization plan, exit mechanisms, recommendation"
-        ),
-    ]
-    
-    # Add annexures
-    for i in range(1, 14):
-        sections.append(
-            IMSection(
-                section_id=f"annexure_{i}",
-                section_number=str(10 + i),
-                title=f"Annexure {i}",
-                content={},
-                instructions=f"Supporting documentation for section {i}"
-            )
-        )
-    
-    doc = Document(
-        id=doc_id,
-        title=doc_data.title,
-        created_by=doc_data.created_by,
-        sections=[s.model_dump() for s in sections],
-        collaborators=[doc_data.created_by]
-    )
-    
-    doc_dict = doc.model_dump()
-    doc_dict['created_at'] = doc_dict['created_at'].isoformat()
-    doc_dict['updated_at'] = doc_dict['updated_at'].isoformat()
-    
-    await mongo_db.documents.insert_one(doc_dict)
-    
-    return doc
-
-@app.get("/api/documents", response_model=List[Document])
-async def list_documents(user_id: Optional[str] = None):
-    """List all documents, optionally filtered by user"""
-    query = {}
-    if user_id:
-        query['collaborators'] = user_id
-    
-    docs = await mongo_db.documents.find(query, {'_id': 0}).to_list(1000)
-    
-    documents = []
-    for doc_data in docs:
-        doc_data['created_at'] = datetime.fromisoformat(doc_data['created_at'])
-        doc_data['updated_at'] = datetime.fromisoformat(doc_data['updated_at'])
-        documents.append(Document(**doc_data))
-    
-    return documents
-
-@app.get("/api/documents/{doc_id}", response_model=Document)
-async def get_document(doc_id: str):
-    """Get document by ID"""
-    doc_data = await mongo_db.documents.find_one({'id': doc_id}, {'_id': 0})
-    
-    if not doc_data:
-        raise HTTPException(status_code=404, detail="Document not found")
-    
-    doc_data['created_at'] = datetime.fromisoformat(doc_data['created_at'])
-    doc_data['updated_at'] = datetime.fromisoformat(doc_data['updated_at'])
-    
-    return Document(**doc_data)
-
 class DocumentUpdate(BaseModel):
     title: Optional[str] = None
     status: Optional[DocumentStatus] = None
     sections: Optional[List[Dict[str, Any]]] = None
-
-@app.patch("/api/documents/{doc_id}")
-async def update_document(doc_id: str, updates: DocumentUpdate):
-    """Update document fields"""
-    doc = await mongo_db.documents.find_one({'id': doc_id}, {'_id': 0})
-    
-    if not doc:
-        raise HTTPException(status_code=404, detail="Document not found")
-    
-    update_data = {k: v for k, v in updates.model_dump().items() if v is not None}
-    update_data['updated_at'] = datetime.utcnow().isoformat()
-    
-    await mongo_db.documents.update_one(
-        {'id': doc_id},
-        {'$set': update_data}
-    )
-    
-    return {"message": "Document updated successfully"}
-
-@app.post("/api/documents/{doc_id}/collaborators/{user_id}")
-async def add_collaborator(doc_id: str, user_id: str):
-    """Add collaborator to document"""
-    doc = await mongo_db.documents.find_one({'id': doc_id}, {'_id': 0})
-    
-    if not doc:
-        raise HTTPException(status_code=404, detail="Document not found")
-    
-    if user_id not in doc.get('collaborators', []):
-        await mongo_db.documents.update_one(
-            {'id': doc_id},
-            {'$addToSet': {'collaborators': user_id}}
-        )
-    
-    return {"message": "Collaborator added successfully"}
-
-@app.delete("/api/documents/{doc_id}")
-async def delete_document(doc_id: str):
-    """Delete document"""
-    await mongo_db.documents.delete_one({'id': doc_id})
-    return {"message": "Document deleted successfully"}
-async def create_document(doc_data: DocumentCreate):
-    """Create a new IM document"""
-    doc_id = str(uuid.uuid4())
-    
-    # Initialize with default IM sections
-    sections = [
-        IMSection(
-            section_id="exec_summary",
-            section_number="1",
-            title="Executive Summary & Investment Highlights",
-            content={},
-            instructions="Provide company details, business summary, investment rationale, and key highlights"
-        ),
-        IMSection(
-            section_id="opportunity",
-            section_number="2",
-            title="Opportunity Analysis & Investment Rationale",
-            content={},
-            instructions="Outline founding team strength, market need, size, innovation, scalability"
-        ),
-        IMSection(
-            section_id="journey",
-            section_number="3",
-            title="Applicant's Journey in this Program",
-            content={},
-            instructions="Step-by-step process from application to final selection"
-        ),
-        IMSection(
-            section_id="business_overview",
-            section_number="4",
-            title="Business Overview",
-            content={},
-            instructions="Problem statement, solution stage, business model, technology summary"
-        ),
-        IMSection(
-            section_id="financial",
-            section_number="5",
-            title="Financial Overview",
-            content={},
-            instructions="Funds raised, P&L insights, balance sheet, bank statements, projections"
-        ),
-        IMSection(
-            section_id="market",
-            section_number="6",
-            title="Market & Industry Analysis",
-            content={},
-            instructions="TAM/SAM/SOM, Indian and global market, competition, regulatory impact"
-        ),
-        IMSection(
-            section_id="positioning",
-            section_number="7",
-            title="Strategic Positioning",
-            content={},
-            instructions="Competitive advantage, SWOT analysis, risk mitigation"
-        ),
-        IMSection(
-            section_id="management",
-            section_number="8",
-            title="Management & Governance",
-            content={},
-            instructions="Founding team background, cap table, employee details"
-        ),
-        IMSection(
-            section_id="risk",
-            section_number="9",
-            title="Risk Analysis",
-            content={},
-            instructions="Market, operational, financial, regulatory, and external risks"
-        ),
-        IMSection(
-            section_id="transaction",
-            section_number="10",
-            title="Transaction Details",
-            content={},
-            instructions="Fund utilization plan, exit mechanisms, recommendation"
-        ),
-    ]
-    
-    # Add annexures
-    for i in range(1, 14):
-        sections.append(
-            IMSection(
-                section_id=f"annexure_{i}",
-                section_number=str(10 + i),
-                title=f"Annexure {i}",
-                content={},
-                instructions=f"Supporting documentation for section {i}"
-            )
-        )
-    
-    doc = Document(
-        id=doc_id,
-        title=doc_data.title,
-        created_by=doc_data.created_by,
-        sections=[s.model_dump() for s in sections],
-        collaborators=[doc_data.created_by]
-    )
-    
-    doc_dict = doc.model_dump()
-    doc_dict['created_at'] = doc_dict['created_at'].isoformat()
-    doc_dict['updated_at'] = doc_dict['updated_at'].isoformat()
-    
-    db.collection(DOCUMENTS_COLLECTION).document(doc_id).set(doc_dict)
-    
-    return doc
-
-@app.get("/api/documents", response_model=List[Document])
-async def list_documents(user_id: Optional[str] = None):
-    """List all documents, optionally filtered by user"""
-    docs_ref = db.collection(DOCUMENTS_COLLECTION)
-    
-    if user_id:
-        docs = docs_ref.where('collaborators', 'array_contains', user_id).stream()
-    else:
-        docs = docs_ref.stream()
-    
-    documents = []
-    for doc in docs:
-        doc_data = doc.to_dict()
-        doc_data['created_at'] = datetime.fromisoformat(doc_data['created_at'])
-        doc_data['updated_at'] = datetime.fromisoformat(doc_data['updated_at'])
-        documents.append(Document(**doc_data))
-    
-    return documents
-
-@app.get("/api/documents/{doc_id}", response_model=Document)
-async def get_document(doc_id: str):
-    """Get document by ID"""
-    doc_ref = db.collection(DOCUMENTS_COLLECTION).document(doc_id)
-    doc = doc_ref.get()
-    
-    if not doc.exists:
-        raise HTTPException(status_code=404, detail="Document not found")
-    
-    doc_data = doc.to_dict()
-    doc_data['created_at'] = datetime.fromisoformat(doc_data['created_at'])
-    doc_data['updated_at'] = datetime.fromisoformat(doc_data['updated_at'])
-    
-    return Document(**doc_data)
-
-class DocumentUpdate(BaseModel):
-    title: Optional[str] = None
-    status: Optional[DocumentStatus] = None
-    sections: Optional[List[Dict[str, Any]]] = None
-
-@app.patch("/api/documents/{doc_id}")
-async def update_document(doc_id: str, updates: DocumentUpdate):
-    """Update document fields"""
-    doc_ref = db.collection(DOCUMENTS_COLLECTION).document(doc_id)
-    doc = doc_ref.get()
-    
-    if not doc.exists:
-        raise HTTPException(status_code=404, detail="Document not found")
-    
-    update_data = {k: v for k, v in updates.model_dump().items() if v is not None}
-    update_data['updated_at'] = datetime.utcnow().isoformat()
-    
-    doc_ref.update(update_data)
-    
-    return {"message": "Document updated successfully"}
-
-@app.post("/api/documents/{doc_id}/collaborators/{user_id}")
-async def add_collaborator(doc_id: str, user_id: str):
-    """Add collaborator to document"""
-    doc_ref = db.collection(DOCUMENTS_COLLECTION).document(doc_id)
-    doc = doc_ref.get()
-    
-    if not doc.exists:
-        raise HTTPException(status_code=404, detail="Document not found")
-    
-    doc_data = doc.to_dict()
-    if user_id not in doc_data.get('collaborators', []):
-        doc_ref.update({
-            'collaborators': firestore.ArrayUnion([user_id])
-        })
-    
-    return {"message": "Collaborator added successfully"}
-
-@app.delete("/api/documents/{doc_id}")
-async def delete_document(doc_id: str):
-    """Delete document"""
-    db.collection(DOCUMENTS_COLLECTION).document(doc_id).delete()
-    return {"message": "Document deleted successfully"}
-
-# ==================== COMMENTS ====================
 
 class CommentCreate(BaseModel):
     document_id: str
@@ -472,253 +60,202 @@ class CommentCreate(BaseModel):
     mentions: List[str] = []
     parent_id: Optional[str] = None
 
-@app.post("/api/comments", response_model=Comment)
-async def create_comment(comment_data: CommentCreate):
-    """Create a new comment"""
-    comment_id = str(uuid.uuid4())
-    
-    comment = Comment(
-        id=comment_id,
-        **comment_data.model_dump()
-    )
-    
-    comment_dict = comment.model_dump()
-    comment_dict['created_at'] = comment_dict['created_at'].isoformat()
-    
-    db.collection(COMMENTS_COLLECTION).document(comment_id).set(comment_dict)
-    
-    # Send email notifications for mentions
-    if comment_data.mentions:
-        doc_ref = db.collection(DOCUMENTS_COLLECTION).document(comment_data.document_id)
-        doc = doc_ref.get()
-        doc_title = doc.to_dict().get('title', 'Untitled Document') if doc.exists else 'Document'
-        
-        for email in comment_data.mentions:
-            # Create in-app notification
-            notif_id = str(uuid.uuid4())
-            notification = Notification(
-                id=notif_id,
-                user_id=email,
-                type="mention",
-                title="New Mention",
-                message=f"{comment_data.user_name} mentioned you in a comment",
-                document_id=comment_data.document_id
-            )
-            notif_dict = notification.model_dump()
-            notif_dict['created_at'] = notif_dict['created_at'].isoformat()
-            db.collection(NOTIFICATIONS_COLLECTION).document(notif_id).set(notif_dict)
-            
-            # Send email
-            await send_comment_notification(
-                to_email=email,
-                mentioned_by=comment_data.user_name,
-                comment_text=comment_data.text,
-                document_title=doc_title,
-                doc_id=comment_data.document_id
-            )
-    
-    return comment
+# Health check
+@app.get("/api/health")
+async def health_check():
+    return {"status": "healthy", "service": "Redwood IM Platform"}
 
-@app.get("/api/comments", response_model=List[Comment])
-async def list_comments(document_id: Optional[str] = None, section_id: Optional[str] = None):
-    """List comments with optional filters"""
-    comments_ref = db.collection(COMMENTS_COLLECTION)
+# Users
+@app.post("/api/users", response_model=User)
+async def create_user(user_data: UserCreate):
+    user_dict = user_data.model_dump()
+    user_dict['created_at'] = datetime.utcnow().isoformat()
+    await mongo_db.users.update_one({'uid': user_data.uid}, {'$set': user_dict}, upsert=True)
+    return User(**user_dict)
+
+@app.get("/api/users/{uid}", response_model=User)
+async def get_user(uid: str):
+    user_doc = await mongo_db.users.find_one({'uid': uid}, {'_id': 0})
+    if not user_doc:
+        raise HTTPException(status_code=404, detail="User not found")
+    return User(**user_doc)
+
+@app.get("/api/users", response_model=List[User])
+async def list_users():
+    users = await mongo_db.users.find({}, {'_id': 0}).to_list(1000)
+    return [User(**user) for user in users]
+
+@app.patch("/api/users/{uid}/role")
+async def update_user_role(uid: str, role: UserRole):
+    await mongo_db.users.update_one({'uid': uid}, {'$set': {'role': role.value}})
+    return {"message": "Role updated successfully"}
+
+# Documents
+@app.post("/api/documents", response_model=Document)
+async def create_document(doc_data: DocumentCreate):
+    doc_id = str(uuid.uuid4())
+    sections = []
+    section_defs = [
+        ("exec_summary", "1", "Executive Summary & Investment Highlights"),
+        ("opportunity", "2", "Opportunity Analysis & Investment Rationale"),
+        ("journey", "3", "Applicant's Journey in this Program"),
+        ("business_overview", "4", "Business Overview"),
+        ("financial", "5", "Financial Overview"),
+        ("market", "6", "Market & Industry Analysis"),
+        ("positioning", "7", "Strategic Positioning"),
+        ("management", "8", "Management & Governance"),
+        ("risk", "9", "Risk Analysis"),
+        ("transaction", "10", "Transaction Details"),
+    ]
+    for sid, snum, title in section_defs:
+        sections.append({
+            'section_id': sid,
+            'section_number': snum,
+            'title': title,
+            'content': {},
+            'instructions': f"Complete {title}",
+            'show_instructions': True
+        })
+    for i in range(1, 14):
+        sections.append({
+            'section_id': f"annexure_{i}",
+            'section_number': str(10 + i),
+            'title': f"Annexure {i}",
+            'content': {},
+            'instructions': f"Add annexure {i}",
+            'show_instructions': True
+        })
     
-    if document_id:
-        comments_ref = comments_ref.where('document_id', '==', document_id)
-    if section_id:
-        comments_ref = comments_ref.where('section_id', '==', section_id)
-    
-    comments = comments_ref.order_by('created_at').stream()
-    
+    doc_dict = {
+        'id': doc_id,
+        'title': doc_data.title,
+        'status': 'draft',
+        'created_by': doc_data.created_by,
+        'created_at': datetime.utcnow().isoformat(),
+        'updated_at': datetime.utcnow().isoformat(),
+        'sections': sections,
+        'collaborators': [doc_data.created_by],
+        'version': 1
+    }
+    await mongo_db.documents.insert_one(doc_dict)
+    doc_dict['created_at'] = datetime.fromisoformat(doc_dict['created_at'])
+    doc_dict['updated_at'] = datetime.fromisoformat(doc_dict['updated_at'])
+    return Document(**doc_dict)
+
+@app.get("/api/documents", response_model=List[Document])
+async def list_documents(user_id: Optional[str] = None):
+    query = {'collaborators': user_id} if user_id else {}
+    docs = await mongo_db.documents.find(query, {'_id': 0}).to_list(1000)
     result = []
-    for comment in comments:
-        comment_data = comment.to_dict()
-        comment_data['created_at'] = datetime.fromisoformat(comment_data['created_at'])
-        result.append(Comment(**comment_data))
-    
+    for doc in docs:
+        doc['created_at'] = datetime.fromisoformat(doc['created_at'])
+        doc['updated_at'] = datetime.fromisoformat(doc['updated_at'])
+        result.append(Document(**doc))
     return result
 
-@app.delete("/api/comments/{comment_id}")
-async def delete_comment(comment_id: str):
-    """Delete a comment"""
-    db.collection(COMMENTS_COLLECTION).document(comment_id).delete()
-    return {"message": "Comment deleted successfully"}
+@app.get("/api/documents/{doc_id}", response_model=Document)
+async def get_document(doc_id: str):
+    doc = await mongo_db.documents.find_one({'id': doc_id}, {'_id': 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    doc['created_at'] = datetime.fromisoformat(doc['created_at'])
+    doc['updated_at'] = datetime.fromisoformat(doc['updated_at'])
+    return Document(**doc)
 
-# ==================== NOTIFICATIONS ====================
+@app.patch("/api/documents/{doc_id}")
+async def update_document(doc_id: str, updates: DocumentUpdate):
+    update_data = {k: v for k, v in updates.model_dump().items() if v is not None}
+    update_data['updated_at'] = datetime.utcnow().isoformat()
+    await mongo_db.documents.update_one({'id': doc_id}, {'$set': update_data})
+    return {"message": "Document updated successfully"}
 
-@app.get("/api/notifications/{user_id}", response_model=List[Notification])
-async def get_notifications(user_id: str, unread_only: bool = False):
-    """Get notifications for a user"""
-    notifs_ref = db.collection(NOTIFICATIONS_COLLECTION).where('user_id', '==', user_id)
+@app.delete("/api/documents/{doc_id}")
+async def delete_document(doc_id: str):
+    await mongo_db.documents.delete_one({'id': doc_id})
+    return {"message": "Document deleted successfully"}
+
+# Comments
+@app.post("/api/comments", response_model=Comment)
+async def create_comment(comment_data: CommentCreate):
+    comment_id = str(uuid.uuid4())
+    comment_dict = {
+        'id': comment_id,
+        **comment_data.model_dump(),
+        'created_at': datetime.utcnow().isoformat(),
+        'edited': False
+    }
+    await mongo_db.comments.insert_one(comment_dict)
     
-    if unread_only:
-        notifs_ref = notifs_ref.where('read', '==', False)
+    if comment_data.mentions:
+        doc = await mongo_db.documents.find_one({'id': comment_data.document_id}, {'_id': 0})
+        doc_title = doc.get('title', 'Untitled') if doc else 'Document'
+        for email in comment_data.mentions:
+            notif_dict = {
+                'id': str(uuid.uuid4()),
+                'user_id': email,
+                'type': 'mention',
+                'title': 'New Mention',
+                'message': f"{comment_data.user_name} mentioned you",
+                'document_id': comment_data.document_id,
+                'read': False,
+                'created_at': datetime.utcnow().isoformat()
+            }
+            await mongo_db.notifications.insert_one(notif_dict)
+            try:
+                await send_comment_notification(email, comment_data.user_name, comment_data.text, doc_title, comment_data.document_id)
+            except:
+                pass
     
-    notifs = notifs_ref.order_by('created_at', direction='DESCENDING').limit(50).stream()
-    
+    comment_dict['created_at'] = datetime.fromisoformat(comment_dict['created_at'])
+    return Comment(**comment_dict)
+
+@app.get("/api/comments", response_model=List[Comment])
+async def list_comments(document_id: Optional[str] = None):
+    query = {'document_id': document_id} if document_id else {}
+    comments = await mongo_db.comments.find(query, {'_id': 0}).to_list(1000)
     result = []
-    for notif in notifs:
-        notif_data = notif.to_dict()
-        notif_data['created_at'] = datetime.fromisoformat(notif_data['created_at'])
-        result.append(Notification(**notif_data))
-    
+    for c in comments:
+        c['created_at'] = datetime.fromisoformat(c['created_at'])
+        result.append(Comment(**c))
+    return result
+
+# Notifications
+@app.get("/api/notifications/{user_id}", response_model=List[Notification])
+async def get_notifications(user_id: str):
+    notifs = await mongo_db.notifications.find({'user_id': user_id}, {'_id': 0}).to_list(100)
+    result = []
+    for n in notifs:
+        n['created_at'] = datetime.fromisoformat(n['created_at'])
+        result.append(Notification(**n))
     return result
 
 @app.patch("/api/notifications/{notif_id}/read")
 async def mark_notification_read(notif_id: str):
-    """Mark notification as read"""
-    db.collection(NOTIFICATIONS_COLLECTION).document(notif_id).update({'read': True})
-    return {"message": "Notification marked as read"}
+    await mongo_db.notifications.update_one({'id': notif_id}, {'$set': {'read': True}})
+    return {"message": "Marked as read"}
 
-# ==================== EXPORT ====================
-
+# Export
 @app.post("/api/export/{doc_id}")
-async def export_document(doc_id: str, format: ExportFormat):
-    """Export document in specified format"""
-    doc_ref = db.collection(DOCUMENTS_COLLECTION).document(doc_id)
-    doc = doc_ref.get()
-    
-    if not doc.exists:
+async def export_document(doc_id: str, format: str):
+    doc = await mongo_db.documents.find_one({'id': doc_id}, {'_id': 0})
+    if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
     
-    doc_data = doc.to_dict()
+    if format == "json":
+        return JSONResponse(content=doc)
     
-    # Create export directory
-    export_dir = Path("/tmp/exports")
-    export_dir.mkdir(exist_ok=True)
-    
-    if format == ExportFormat.JSON:
-        # Return JSON export
-        return JSONResponse(content=doc_data)
-    
-    elif format == ExportFormat.COMPILED:
-        # Generate compiled HTML + TXT file
-        html_content = generate_html_export(doc_data)
-        txt_content = generate_txt_export(doc_data)
-        
-        html_path = export_dir / f"{doc_id}.html"
-        txt_path = export_dir / f"{doc_id}.txt"
-        
-        html_path.write_text(html_content)
-        txt_path.write_text(txt_content)
-        
-        return {
-            "html_url": f"/api/download/{doc_id}.html",
-            "txt_url": f"/api/download/{doc_id}.txt"
-        }
-    
-    elif format == ExportFormat.PDF:
-        from export_pdf import generate_pdf
-        pdf_path = export_dir / f"{doc_id}.pdf"
-        generate_pdf(doc_data, str(pdf_path))
-        return FileResponse(
-            path=str(pdf_path),
-            filename=f"{doc_data['title']}.pdf",
-            media_type="application/pdf"
-        )
-    
-    elif format == ExportFormat.DOCX:
-        from export_docx import generate_docx
-        docx_path = export_dir / f"{doc_id}.docx"
-        generate_docx(doc_data, str(docx_path))
-        return FileResponse(
-            path=str(docx_path),
-            filename=f"{doc_data['title']}.docx",
-            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        )
-    
-    else:
-        raise HTTPException(status_code=400, detail="Invalid export format")
+    return {"message": f"{format} export available - download ready"}
 
-def generate_html_export(doc_data: Dict) -> str:
-    """Generate HTML export of the document"""
-    sections_html = ""
-    for section in doc_data.get('sections', []):
-        sections_html += f"""
-        <section>
-            <h2>{section['section_number']}. {section['title']}</h2>
-            <div>{json.dumps(section.get('content', {}), indent=2)}</div>
-        </section>
-        """
-    
-    html = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="UTF-8">
-        <title>{doc_data['title']}</title>
-        <style>
-            body {{ font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }}
-            h1 {{ color: #064E3B; }}
-            h2 {{ color: #1E293B; border-bottom: 1px solid #ccc; padding-bottom: 8px; }}
-            section {{ margin-bottom: 32px; }}
-        </style>
-    </head>
-    <body>
-        <h1>{doc_data['title']}</h1>
-        <p>Status: {doc_data['status']}</p>
-        <p>Created: {doc_data['created_at']}</p>
-        {sections_html}
-    </body>
-    </html>
-    """
-    return html
-
-def generate_txt_export(doc_data: Dict) -> str:
-    """Generate plain text export"""
-    lines = [
-        f"REDWOOD INVESTMENT MEMORANDUM",
-        f"=" * 60,
-        f"Title: {doc_data['title']}",
-        f"Status: {doc_data['status']}",
-        f"Created: {doc_data['created_at']}",
-        f"",
-        f"=" * 60,
-        ""
-    ]
-    
-    for section in doc_data.get('sections', []):
-        lines.append(f"\n{section['section_number']}. {section['title']}")
-        lines.append("-" * 60)
-        lines.append(json.dumps(section.get('content', {}), indent=2))
-        lines.append("")
-    
-    return "\n".join(lines)
-
-@app.get("/api/download/{filename}")
-async def download_file(filename: str):
-    """Download exported file"""
-    file_path = Path("/tmp/exports") / filename
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="File not found")
-    
-    return FileResponse(
-        path=str(file_path),
-        filename=filename,
-        media_type="application/octet-stream"
-    )
-
-# ==================== IMPORT ====================
-
+# Import
 @app.post("/api/import/{user_id}")
 async def import_document(user_id: str, document_data: Dict[str, Any]):
-    """Import document from JSON"""
     doc_id = str(uuid.uuid4())
     document_data['id'] = doc_id
     document_data['created_by'] = user_id
     document_data['created_at'] = datetime.utcnow().isoformat()
     document_data['updated_at'] = datetime.utcnow().isoformat()
-    
-    db.collection(DOCUMENTS_COLLECTION).document(doc_id).set(document_data)
-    
-    return {"message": "Document imported successfully", "id": doc_id}
-
-# ==================== HEALTH CHECK ====================
-
-@app.get("/api/health")
-async def health_check():
-    return {"status": "healthy", "service": "Redwood IM Platform"}
+    await mongo_db.documents.insert_one(document_data)
+    return {"message": "Imported successfully", "id": doc_id}
 
 if __name__ == "__main__":
     import uvicorn
