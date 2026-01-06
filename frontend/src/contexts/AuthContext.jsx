@@ -42,26 +42,42 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const signup = async (email, password, displayName) => {
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    await updateProfile(userCredential.user, { displayName });
-    
-    // Create user profile in Firestore and backend
-    const userData = {
-      uid: userCredential.user.uid,
-      email,
-      display_name: displayName,
-      role: 'editor',
-      created_at: new Date().toISOString()
-    };
-    
-    await setDoc(doc(db, 'users', userCredential.user.uid), userData);
-    await axios.post(`${API_URL}/api/users`, userData);
-    
-    return userCredential;
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      await updateProfile(userCredential.user, { displayName });
+      
+      // Create user profile in Firestore and backend
+      const userData = {
+        uid: userCredential.user.uid,
+        email,
+        display_name: displayName,
+        role: 'editor',
+        created_at: new Date().toISOString()
+      };
+      
+      await setDoc(doc(db, 'users', userCredential.user.uid), userData);
+      await axios.post(`${API_URL}/api/users`, userData);
+      
+      return userCredential;
+    } catch (error) {
+      console.error('Signup error:', error);
+      if (error.code === 'auth/network-request-failed') {
+        throw new Error('Network error. Please check your internet connection and try again.');
+      }
+      throw error;
+    }
   };
 
   const login = async (email, password) => {
-    return signInWithEmailAndPassword(auth, email, password);
+    try {
+      return await signInWithEmailAndPassword(auth, email, password);
+    } catch (error) {
+      console.error('Login error:', error);
+      if (error.code === 'auth/network-request-failed') {
+        throw new Error('Network error. Please check your internet connection and try again.');
+      }
+      throw error;
+    }
   };
 
   const logout = async () => {
