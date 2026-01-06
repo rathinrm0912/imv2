@@ -52,53 +52,42 @@ class UserCreate(BaseModel):
 
 @app.post("/api/users", response_model=User)
 async def create_user(user_data: UserCreate):
-    """Create or update user profile in MongoDB (fallback if Firestore unavailable)"""
+    """Create or update user profile"""
     user_dict = user_data.model_dump()
     user_dict['created_at'] = datetime.utcnow().isoformat()
     
-    # Try Firestore first, fallback to MongoDB if it fails
-    try:
-        user_ref = db.collection(USERS_COLLECTION).document(user_data.uid)
-        user_ref.set(user_dict, merge=True)
-    except Exception as e:
-        print(f"Firestore error (using MongoDB fallback): {str(e)}")
-        # Store in MongoDB instead
-        from motor.motor_asyncio import AsyncIOMotorClient
-        mongo_url = os.environ['MONGO_URL']
-        mongo_client = AsyncIOMotorClient(mongo_url)
-        mongo_db = mongo_client[os.environ['DB_NAME']]
-        await mongo_db.users.update_one(
-            {'uid': user_data.uid},
-            {'$set': user_dict},
-            upsert=True
-        )
+    # Store in MongoDB
+    await mongo_db.users.update_one(
+        {'uid': user_data.uid},
+        {'$set': user_dict},
+        upsert=True
+    )
     
     return User(**user_dict)
 
 @app.get("/api/users/{uid}", response_model=User)
 async def get_user(uid: str):
     """Get user by UID"""
-    user_ref = db.collection(USERS_COLLECTION).document(uid)
-    user_doc = user_ref.get()
+    user_doc = await mongo_db.users.find_one({'uid': uid}, {'_id': 0})
     
-    if not user_doc.exists:
+    if not user_doc:
         raise HTTPException(status_code=404, detail="User not found")
     
-    return User(**user_doc.to_dict())
+    return User(**user_doc)
 
 @app.get("/api/users", response_model=List[User])
 async def list_users():
     """List all users"""
-    users_ref = db.collection(USERS_COLLECTION)
-    users = users_ref.stream()
-    
-    return [User(**user.to_dict()) for user in users]
+    users = await mongo_db.users.find({}, {'_id': 0}).to_list(1000)
+    return [User(**user) for user in users]
 
 @app.patch("/api/users/{uid}/role")
 async def update_user_role(uid: str, role: UserRole):
     """Update user role (Admin only)"""
-    user_ref = db.collection(USERS_COLLECTION).document(uid)
-    user_ref.update({'role': role.value})
+    await mongo_db.users.update_one(
+        {'uid': uid},
+        {'$set': {'role': role.value}}
+    )
     return {"message": "Role updated successfully"}
 
 # ==================== DOCUMENT MANAGEMENT ====================
