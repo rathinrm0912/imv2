@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useMockAuth } from '../contexts/MockAuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import axios from 'axios';
 import { doc, onSnapshot } from 'firebase/firestore';
@@ -14,10 +15,13 @@ import CommentPanel from '../components/editor/CommentPanel';
 import NotificationCenter from '../components/editor/NotificationCenter';
 import ExportDialog from '../components/editor/ExportDialog';
 
+const USE_MOCK_AUTH = process.env.REACT_APP_USE_MOCK_AUTH === 'true';
+
 const Editor = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const authHook = USE_MOCK_AUTH ? useMockAuth : useAuth;
+  const { user } = authHook();
   const { theme, toggleTheme } = useTheme();
   const [document, setDocument] = useState(null);
   const [activeSection, setActiveSection] = useState('');
