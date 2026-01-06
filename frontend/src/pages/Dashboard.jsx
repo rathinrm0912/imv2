@@ -124,6 +124,15 @@ const Dashboard = () => {
             </Button>
           </div>
           <Button
+            onClick={() => setShowImport(true)}
+            variant="outline"
+            className="rounded-sm"
+            data-testid="import-doc-btn"
+          >
+            <Upload size={18} className="mr-2" />
+            Import
+          </Button>
+          <Button
             onClick={createNewDocument}
             className="rounded-sm"
             data-testid="create-doc-btn"
@@ -132,6 +141,13 @@ const Dashboard = () => {
             New Document
           </Button>
         </div>
+
+      {/* Import Dialog */}
+      <ImportDialog
+        isOpen={showImport}
+        onClose={() => setShowImport(false)}
+        onSuccess={fetchDocuments}
+      />
 
         {/* Documents Grid */}
         {loading ? (
