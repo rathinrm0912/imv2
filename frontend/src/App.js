@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { MockAuthProvider, useMockAuth } from './contexts/MockAuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { Toaster } from './components/ui/sonner';
 
@@ -11,9 +12,13 @@ import Dashboard from './pages/Dashboard';
 import Editor from './pages/Editor';
 import UserManagement from './pages/UserManagement';
 
+// Use mock auth if enabled
+const USE_MOCK_AUTH = process.env.REACT_APP_USE_MOCK_AUTH === 'true';
+
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
-  const { user, loading } = useAuth();
+  const authHook = USE_MOCK_AUTH ? useMockAuth : useAuth;
+  const { user, loading } = authHook();
   
   if (loading) {
     return (
@@ -30,9 +35,11 @@ const ProtectedRoute = ({ children }) => {
 };
 
 function App() {
+  const AuthContextProvider = USE_MOCK_AUTH ? MockAuthProvider : AuthProvider;
+  
   return (
     <ThemeProvider>
-      <AuthProvider>
+      <AuthContextProvider>
         <Router>
           <Routes>
             <Route path="/login" element={<Login />} />
@@ -64,7 +71,7 @@ function App() {
           </Routes>
         </Router>
         <Toaster position="top-right" />
-      </AuthProvider>
+      </AuthContextProvider>
     </ThemeProvider>
   );
 }
