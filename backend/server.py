@@ -9,15 +9,27 @@ import json
 from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
+from motor.motor_asyncio import AsyncIOMotorClient
 
 # Import Firebase and Resend configs
-from firebase_config import db, USERS_COLLECTION, DOCUMENTS_COLLECTION, COMMENTS_COLLECTION, NOTIFICATIONS_COLLECTION
+try:
+    from firebase_config import db as firestore_db, USERS_COLLECTION, DOCUMENTS_COLLECTION, COMMENTS_COLLECTION, NOTIFICATIONS_COLLECTION
+    FIRESTORE_AVAILABLE = True
+except Exception as e:
+    print(f"Firestore not available: {e}")
+    FIRESTORE_AVAILABLE = False
+
 from resend_config import send_comment_notification
 from models import User, UserRole, Document, DocumentStatus, Comment, Notification, IMSection, ExportFormat
 
 # Load environment variables
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
+
+# MongoDB connection
+mongo_url = os.environ['MONGO_URL']
+mongo_client = AsyncIOMotorClient(mongo_url)
+mongo_db = mongo_client[os.environ['DB_NAME']]
 
 app = FastAPI(title="Redwood IM Platform API")
 
