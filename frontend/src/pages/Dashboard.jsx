@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useMockAuth } from '../contexts/MockAuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import axios from 'axios';
 import { Button } from '../components/ui/button';
@@ -9,13 +10,16 @@ import { toast } from 'sonner';
 import { Plus, FileText, Moon, Sun, LogOut, Search, Filter, Upload } from 'lucide-react';
 import ImportDialog from '../components/dashboard/ImportDialog';
 
+const USE_MOCK_AUTH = process.env.REACT_APP_USE_MOCK_AUTH === 'true';
+
 const Dashboard = () => {
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState('all');
   const [showImport, setShowImport] = useState(false);
-  const { user, userProfile, logout } = useAuth();
+  const authHook = USE_MOCK_AUTH ? useMockAuth : useAuth;
+  const { user, userProfile, logout } = authHook();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const API_URL = process.env.REACT_APP_BACKEND_URL;
