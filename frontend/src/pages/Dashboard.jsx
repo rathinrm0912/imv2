@@ -6,7 +6,8 @@ import axios from 'axios';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { toast } from 'sonner';
-import { Plus, FileText, Moon, Sun, LogOut, Search, Filter } from 'lucide-react';
+import { Plus, FileText, Moon, Sun, LogOut, Search, Filter, Upload } from 'lucide-react';
+import ImportDialog from '../components/dashboard/ImportDialog';
 
 const Dashboard = () => {
   const [documents, setDocuments] = useState([]);
