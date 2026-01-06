@@ -40,12 +40,26 @@ class UserCreate(BaseModel):
 
 @app.post("/api/users", response_model=User)
 async def create_user(user_data: UserCreate):
-    """Create or update user profile in Firestore"""
+    """Create or update user profile in MongoDB (fallback if Firestore unavailable)"""
     user_dict = user_data.model_dump()
     user_dict['created_at'] = datetime.utcnow().isoformat()
     
-    user_ref = db.collection(USERS_COLLECTION).document(user_data.uid)
-    user_ref.set(user_dict, merge=True)
+    # Try Firestore first, fallback to MongoDB if it fails
+    try:
+        user_ref = db.collection(USERS_COLLECTION).document(user_data.uid)
+        user_ref.set(user_dict, merge=True)
+    except Exception as e:
+        print(f"Firestore error (using MongoDB fallback): {str(e)}")
+        # Store in MongoDB instead
+        from motor.motor_asyncio import AsyncIOMotorClient
+        mongo_url = os.environ['MONGO_URL']
+        mongo_client = AsyncIOMotorClient(mongo_url)
+        mongo_db = mongo_client[os.environ['DB_NAME']]
+        await mongo_db.users.update_one(
+            {'uid': user_data.uid},
+            {'$set': user_dict},
+            upsert=True
+        )
     
     return User(**user_dict)
 
