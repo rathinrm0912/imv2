@@ -14,6 +14,7 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState('all');
+  const [showImport, setShowImport] = useState(false);
   const { user, userProfile, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
