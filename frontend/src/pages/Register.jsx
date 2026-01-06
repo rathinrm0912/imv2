@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useMockAuth } from '../contexts/MockAuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -8,12 +9,15 @@ import { Label } from '../components/ui/label';
 import { toast } from 'sonner';
 import { Moon, Sun } from 'lucide-react';
 
+const USE_MOCK_AUTH = process.env.REACT_APP_USE_MOCK_AUTH === 'true';
+
 const Register = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signup } = useAuth();
+  const authHook = USE_MOCK_AUTH ? useMockAuth : useAuth;
+  const { signup } = authHook();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
