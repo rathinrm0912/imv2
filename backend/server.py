@@ -389,6 +389,10 @@ async def export_document(doc_id: str, format: ExportFormat):
     
     doc_data = doc.to_dict()
     
+    # Create export directory
+    export_dir = Path("/tmp/exports")
+    export_dir.mkdir(exist_ok=True)
+    
     if format == ExportFormat.JSON:
         # Return JSON export
         return JSONResponse(content=doc_data)
@@ -397,10 +401,6 @@ async def export_document(doc_id: str, format: ExportFormat):
         # Generate compiled HTML + TXT file
         html_content = generate_html_export(doc_data)
         txt_content = generate_txt_export(doc_data)
-        
-        # Save to temp files
-        export_dir = Path("/tmp/exports")
-        export_dir.mkdir(exist_ok=True)
         
         html_path = export_dir / f"{doc_id}.html"
         txt_path = export_dir / f"{doc_id}.txt"
@@ -413,9 +413,28 @@ async def export_document(doc_id: str, format: ExportFormat):
             "txt_url": f"/api/download/{doc_id}.txt"
         }
     
+    elif format == ExportFormat.PDF:
+        from export_pdf import generate_pdf
+        pdf_path = export_dir / f"{doc_id}.pdf"
+        generate_pdf(doc_data, str(pdf_path))
+        return FileResponse(
+            path=str(pdf_path),
+            filename=f"{doc_data['title']}.pdf",
+            media_type="application/pdf"
+        )
+    
+    elif format == ExportFormat.DOCX:
+        from export_docx import generate_docx
+        docx_path = export_dir / f"{doc_id}.docx"
+        generate_docx(doc_data, str(docx_path))
+        return FileResponse(
+            path=str(docx_path),
+            filename=f"{doc_data['title']}.docx",
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
+    
     else:
-        # PDF and DOCX will be implemented with proper libraries
-        return {"message": f"{format.value} export coming soon"}
+        raise HTTPException(status_code=400, detail="Invalid export format")
 
 def generate_html_export(doc_data: Dict) -> str:
     """Generate HTML export of the document"""
