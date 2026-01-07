@@ -1,53 +1,44 @@
-Now let me verify the render.yaml is correct:
-Action: file_editor view /app/render.yaml
-Observation: /app/render.yaml:
-1|services:
-2|  # Backend API Service
-3|  - type: web
-4|    name: redwood-im-backend
-5|    env: python
-6|    region: oregon
-7|    plan: free
-8|    buildCommand: pip install -r backend/requirements.txt
-9|    startCommand: cd backend && uvicorn server:app --host 0.0.0.0 --port $PORT
-10|    envVars:
-11|      - key: MONGO_URL
-12|        sync: false
-13|      - key: DB_NAME
-14|        value: redwood_im_production
-15|      - key: CORS_ORIGINS
-16|        value: "*"
-17|      - key: FIREBASE_PROJECT_ID
-18|        value: im-b169f
-19|      - key: RESEND_API_KEY
-20|        sync: false
-21|      - key: PYTHON_VERSION
-22|        value: "3.11.0"
-23|
-24|  # Frontend Service
-25|  - type: web
-26|    name: redwood-im-frontend
-27|    env: static
-28|    region: oregon
-29|    plan: free
-30|    buildCommand: cd frontend && yarn install && yarn build
-31|    staticPublishPath: ./frontend/build
-32|    envVars:
-33|      - key: REACT_APP_BACKEND_URL
-34|        fromService:
-35|          type: web
-36|          name: redwood-im-backend
-37|          property: host
-38|      - key: REACT_APP_FIREBASE_API_KEY
-39|        value: AIzaSyAUIbaz0U4nYl5b6mRrB3Iitd3MhfunEfA
-40|      - key: REACT_APP_FIREBASE_AUTH_DOMAIN
-41|        value: im-b169f.firebaseapp.com
-42|      - key: REACT_APP_FIREBASE_PROJECT_ID
-43|        value: im-b169f
-44|      - key: REACT_APP_FIREBASE_STORAGE_BUCKET
-45|        value: im-b169f.firebasestorage.app
-46|      - key: REACT_APP_USE_MOCK_AUTH
-47|        value: "false"
-48|      - key: NODE_VERSION
-49|        value: "18.17.0"
-50|
+services:
+  # Backend API
+  - type: web
+    name: redwood-im-backend
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: cd backend && uvicorn server:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: MONGO_URL
+        sync: false
+      - key: DB_NAME
+        value: redwood_im_production
+      - key: CORS_ORIGINS
+        value: "*"
+      - key: FIREBASE_PROJECT_ID
+        value: im-b169f
+      - key: RESEND_API_KEY
+        sync: false
+      - key: PYTHON_VERSION
+        value: "3.11.0"
+
+  # Frontend (React Static Site)
+  - type: web
+    name: redwood-im-frontend
+    env: static
+    buildCommand: cd frontend && yarn install && yarn build
+    staticPublishPath: frontend/build
+    envVars:
+      - key: REACT_APP_BACKEND_URL
+        value: https://redwood-im-backend.onrender.com
+      - key: REACT_APP_FIREBASE_API_KEY
+        value: AIzaSyAUIbaz0U4nYl5b6mRrB3Iitd3MhfunEfA
+      - key: REACT_APP_FIREBASE_AUTH_DOMAIN
+        value: im-b169f.firebaseapp.com
+      - key: REACT_APP_FIREBASE_PROJECT_ID
+        value: im-b169f
+      - key: REACT_APP_FIREBASE_STORAGE_BUCKET
+        value: im-b169f.firebasestorage.app
+      - key: REACT_APP_USE_MOCK_AUTH
+        value: "false"
+      - key: NODE_VERSION
+        value: "18.17.0"
