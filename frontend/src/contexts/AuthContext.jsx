@@ -23,23 +23,39 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        setUser(firebaseUser);
-        
-        // Fetch user profile from Firestore
-        const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-        if (userDoc.exists()) {
-          setUserProfile(userDoc.data());
+      try {
+        if (firebaseUser) {
+          setUser(firebaseUser);
+
+          // Safely fetch Firestore profile
+          try {
+            const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+            if (userDoc.exists()) {
+              setUserProfile(userDoc.data());
+            } else {
+              setUserProfile(null);
+            }
+          } catch (firestoreError) {
+            console.error("Firestore blocked or offline:", firestoreError);
+            setUserProfile(null); // IMPORTANT: prevent crash
+          }
+
+        } else {
+          setUser(null);
+          setUserProfile(null);
         }
-      } else {
+      } catch (authError) {
+        console.error("Auth error:", authError);
         setUser(null);
         setUserProfile(null);
+      } finally {
+        setLoading(false); // ALWAYS release loading
       }
-      setLoading(false);
     });
 
     return unsubscribe;
   }, []);
+
 
   const signup = async (email, password, displayName) => {
     try {
