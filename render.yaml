@@ -1,9 +1,8 @@
-
-Action: file_editor create /app/render.yaml --file-text "services:
-  # Backend API Service
+services:
+  # Backend API
   - type: web
     name: redwood-im-backend
-    runtime: python
+    region: oregon
     plan: free
     buildCommand: pip install -r backend/requirements.txt
     startCommand: cd backend && uvicorn server:app --host 0.0.0.0 --port $PORT
@@ -13,27 +12,24 @@ Action: file_editor create /app/render.yaml --file-text "services:
       - key: DB_NAME
         value: redwood_im_production
       - key: CORS_ORIGINS
-        value: \"*\"
+        value: "*"
       - key: FIREBASE_PROJECT_ID
         value: im-b169f
       - key: RESEND_API_KEY
         sync: false
       - key: PYTHON_VERSION
-        value: 3.11.0
+        value: "3.11.0"
 
-  # Frontend Service
-  - type: web
+  # Frontend (React Static Site)
+  - type: static
     name: redwood-im-frontend
-    runtime: node
+    region: oregon
     plan: free
     buildCommand: cd frontend && yarn install && yarn build
-    staticPublishPath: ./frontend/build
+    staticPublishPath: frontend/build
     envVars:
       - key: REACT_APP_BACKEND_URL
-        fromService:
-          type: web
-          name: redwood-im-backend
-          property: host
+        value: https://redwood-im-backend.onrender.com
       - key: REACT_APP_FIREBASE_API_KEY
         value: AIzaSyAUIbaz0U4nYl5b6mRrB3Iitd3MhfunEfA
       - key: REACT_APP_FIREBASE_AUTH_DOMAIN
@@ -43,8 +39,6 @@ Action: file_editor create /app/render.yaml --file-text "services:
       - key: REACT_APP_FIREBASE_STORAGE_BUCKET
         value: im-b169f.firebasestorage.app
       - key: REACT_APP_USE_MOCK_AUTH
-        value: \"false\"
+        value: "false"
       - key: NODE_VERSION
-        value: 18.17.0
-"
-Observation: Create successful: /app/render.yaml
+        value: "18.17.0"
