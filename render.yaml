@@ -25,7 +25,6 @@ services:
   - type: web
     name: redwood-im-frontend
     env: static
-    region: oregon
     plan: free
     buildCommand: cd frontend && yarn install && yarn build
     staticPublishPath: frontend/build
