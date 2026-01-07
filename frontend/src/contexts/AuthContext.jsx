@@ -108,7 +108,20 @@ export const AuthProvider = ({ children }) => {
 
   return (
     <AuthContext.Provider value={value}>
-      {!loading && children}
-    </AuthContext.Provider>
+  {loading ? (
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontSize: '16px'
+    }}>
+      Loading…
+    </div>
+  ) : (
+    children
+  )}
+</AuthContext.Provider>
+
   );
 };
