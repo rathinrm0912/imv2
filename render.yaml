@@ -2,6 +2,7 @@ services:
   # Backend API
   - type: web
     name: redwood-im-backend
+    env: python
     region: oregon
     plan: free
     buildCommand: pip install -r backend/requirements.txt
@@ -21,8 +22,9 @@ services:
         value: "3.11.0"
 
   # Frontend (React Static Site)
-  - type: static
+  - type: web
     name: redwood-im-frontend
+    env: static
     region: oregon
     plan: free
     buildCommand: cd frontend && yarn install && yarn build
