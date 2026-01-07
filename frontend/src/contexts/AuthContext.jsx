@@ -22,39 +22,36 @@ export const AuthProvider = ({ children }) => {
   const API_URL = process.env.REACT_APP_BACKEND_URL;
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      try {
-        if (firebaseUser) {
-          setUser(firebaseUser);
+  const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    try {
+      if (firebaseUser) {
+        setUser(firebaseUser);
 
-          // Safely fetch Firestore profile
-          try {
-            const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-            if (userDoc.exists()) {
-              setUserProfile(userDoc.data());
-            } else {
-              setUserProfile(null);
-            }
-          } catch (firestoreError) {
-            console.error("Firestore blocked or offline:", firestoreError);
-            setUserProfile(null); // IMPORTANT: prevent crash
+        try {
+          const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+          if (userDoc.exists()) {
+            setUserProfile(userDoc.data());
           }
-
-        } else {
-          setUser(null);
+        } catch (err) {
+          console.warn("Firestore offline, continuing without profile");
           setUserProfile(null);
         }
-      } catch (authError) {
-        console.error("Auth error:", authError);
+      } else {
         setUser(null);
         setUserProfile(null);
-      } finally {
-        setLoading(false); // ALWAYS release loading
       }
-    });
+    } catch (err) {
+      console.error("Auth error:", err);
+      setUser(null);
+      setUserProfile(null);
+    } finally {
+      setLoading(false);
+    }
+  });
 
-    return unsubscribe;
-  }, []);
+  return unsubscribe;
+}, []);
+
 
 
   const signup = async (email, password, displayName) => {
