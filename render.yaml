@@ -25,7 +25,7 @@ services:
   - type: web
     name: redwood-im-frontend
     env: static
-    buildCommand: cd frontend && yarn install && yarn build
+    buildCommand: cd frontend && npm install && npm run build
     staticPublishPath: frontend/build
     envVars:
       - key: REACT_APP_BACKEND_URL
